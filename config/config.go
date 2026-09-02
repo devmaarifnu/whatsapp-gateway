@@ -24,7 +24,8 @@ type LogConfig struct {
 }
 
 type ServerConfig struct {
-	Port int `mapstructure:"port"`
+	Port     int    `mapstructure:"port"`
+	BasePath string `mapstructure:"base_path"`
 }
 
 type DatabaseConfig struct {

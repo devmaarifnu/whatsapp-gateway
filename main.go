@@ -80,18 +80,30 @@ func main() {
 		AllowCredentials: false,
 	}))
 
-	r.StaticFile("/qr.html", "./qr.html")
+	bp := cfg.Server.BasePath
+	r.StaticFile(bp+"/qr.html", "./docs/qr.html")
+
+	r.NoRoute(func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		if c.Request.Method == http.MethodOptions {
+			c.Status(http.StatusNoContent)
+			return
+		}
+		c.Status(http.StatusNotFound)
+	})
 
 	auth := middleware.Auth(tokenRepo)
-	api := r.Group("/", auth)
+	api := r.Group(bp+"/", auth)
 	{
-		api.POST("/send/message", sendH.SendMessage)
-		api.POST("/send/template", sendH.SendTemplate)
-		api.GET("/messages/:id", historyH.GetMessage)
-		api.GET("/messages", historyH.ListMessages)
-		api.GET("/qr", waH.GetQR)
-		api.GET("/status", waH.GetStatus)
-		api.POST("/logout", waH.Logout)
+		api.POST("send/message", sendH.SendMessage)
+		api.POST("send/template", sendH.SendTemplate)
+		api.GET("messages/:id", historyH.GetMessage)
+		api.GET("messages", historyH.ListMessages)
+		api.GET("qr", waH.GetQR)
+		api.GET("status", waH.GetStatus)
+		api.POST("logout", waH.Logout)
 	}
 
 	srv := &http.Server{

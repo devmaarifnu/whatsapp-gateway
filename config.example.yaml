@@ -1,5 +1,6 @@
 server:
   port: 8080
+  base_path: ""  # prefix jika di-proxy, e.g. "/wa"
 
 log:
   level: "info"
