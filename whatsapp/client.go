@@ -3,8 +3,10 @@
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 
+	"github.com/mdp/qrterminal/v3"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types/events"
@@ -62,6 +64,8 @@ func (c *Client) consumeQR(ch <-chan whatsmeow.QRChannelItem) {
 			c.mu.Lock()
 			c.currentQR = evt.Code
 			c.mu.Unlock()
+			qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
+			c.logger.Info("QR code printed to terminal — scan with WhatsApp")
 		}
 	}
 }
