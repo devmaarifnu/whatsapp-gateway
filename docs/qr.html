@@ -167,7 +167,7 @@
     <summary>Konfigurasi</summary>
     <div class="cfg-row">
       <label>Base URL</label>
-      <input id="cfg-url" type="text" value="http://localhost:8080">
+      <input id="cfg-url" type="text" value="https://api.maarifnu.or.id/wa">
     </div>
     <div class="cfg-row">
       <label>Bearer Token</label>
@@ -188,7 +188,7 @@
   /* ── config ─────────────────────────────────────── */
   function cfg() {
     return {
-      url:   localStorage.getItem('gw_url')   || 'http://localhost:8080',
+      url:   localStorage.getItem('gw_url')   || 'https://api.maarifnu.or.id/wa',
       token: localStorage.getItem('gw_token') || ''
     };
   }
