@@ -1,0 +1,45 @@
+server:
+  port: 8080
+
+log:
+  level: "info"
+  file: "logs/app.log"
+  max_size_mb: 100
+  max_backups: 7
+  max_age_days: 30
+  compress: true
+
+database:
+  mysql:
+    host: "127.0.0.1"
+    port: 3306
+    user: "root"
+    password: "your-password"
+    name: "wagateway"
+  sqlite:
+    path: "./whatsapp.db"
+
+worker:
+  count: 3
+
+alert:
+  enabled: true
+  cooldown_minutes: 30
+
+  email:
+    enabled: false
+    smtp_host: "smtp.gmail.com"
+    smtp_port: 587
+    username: "bot@example.com"
+    password: "your-smtp-password"
+    from: "bot@example.com"
+    to:
+      - "admin@example.com"
+    subject: "[ALERT] WhatsApp Gateway Disconnected"
+
+  telegram:
+    enabled: false
+    bot_token: "your-bot-token"
+    chat_ids:
+      - "-100xxxxxxxxx"
+    message_template: "WA Gateway disconnected\nHost: {{hostname}}\nTime: {{time}}\nReason: {{reason}}"

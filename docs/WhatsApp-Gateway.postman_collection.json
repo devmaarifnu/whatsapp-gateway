@@ -1,0 +1,352 @@
+{
+  "info": {
+    "name": "WhatsApp Gateway",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "your-static-token-here",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "WhatsApp",
+      "item": [
+        {
+          "name": "Get QR Code",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/qr",
+              "host": ["{{base_url}}"],
+              "path": ["qr"]
+            },
+            "description": "Ambil QR code untuk login WhatsApp. Response berisi base64 PNG jika belum connected, atau {connected: true} jika sudah."
+          },
+          "response": [
+            {
+              "name": "Not Connected — QR Available",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"connected\": false,\n  \"qr\": \"data:image/png;base64,iVBORw0KGgo...\"\n}"
+            },
+            {
+              "name": "Already Connected",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"connected\": true\n}"
+            },
+            {
+              "name": "QR Not Ready",
+              "status": "Service Unavailable",
+              "code": 503,
+              "body": "{\n  \"error\": \"QR not available — not logged in or already connected\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["status"]
+            },
+            "description": "Cek status koneksi WhatsApp."
+          },
+          "response": [
+            {
+              "name": "Connected",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"connected\": true,\n  \"phone\": \"628123456789\"\n}"
+            },
+            {
+              "name": "Disconnected",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"connected\": false,\n  \"phone\": \"\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Send",
+      "item": [
+        {
+          "name": "Send Single Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"628123456789\",\n  \"message\": \"Halo, ini pesan langsung dari API\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/send/message",
+              "host": ["{{base_url}}"],
+              "path": ["send", "message"]
+            },
+            "description": "Kirim pesan teks langsung ke nomor WhatsApp. Return 202 + message_id, proses kirim async di background."
+          },
+          "response": [
+            {
+              "name": "Accepted",
+              "status": "Accepted",
+              "code": 202,
+              "body": "{\n  \"message_id\": 42,\n  \"status\": \"pending\"\n}"
+            },
+            {
+              "name": "Bad Request",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"error\": \"Key: 'to' Error:Field validation for 'to' failed on the 'required' tag\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Send Template Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"628123456789\",\n  \"template\": \"order_ready\",\n  \"variables\": {\n    \"name\": \"Budi\",\n    \"order_id\": \"ORD-001\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/send/template",
+              "host": ["{{base_url}}"],
+              "path": ["send", "template"]
+            },
+            "description": "Kirim pesan menggunakan template. Variabel {{name}}, {{order_id}}, dst akan disubstitusi dari field variables."
+          },
+          "response": [
+            {
+              "name": "Accepted",
+              "status": "Accepted",
+              "code": 202,
+              "body": "{\n  \"message_id\": 43,\n  \"status\": \"pending\"\n}"
+            },
+            {
+              "name": "Template Not Found",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"error\": \"template \\\"order_ready\\\" not found\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "History",
+      "item": [
+        {
+          "name": "Get Message by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/messages/42",
+              "host": ["{{base_url}}"],
+              "path": ["messages", "42"]
+            },
+            "description": "Cek status pengiriman pesan berdasarkan message_id yang diterima dari /send."
+          },
+          "response": [
+            {
+              "name": "Sent",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"id\": 42,\n  \"type\": \"single\",\n  \"to_number\": \"628123456789\",\n  \"body\": \"Halo, ini pesan langsung dari API\",\n  \"status\": \"sent\",\n  \"sent_at\": \"2026-09-02T07:51:00Z\",\n  \"created_at\": \"2026-09-02T07:50:59Z\"\n}"
+            },
+            {
+              "name": "Pending",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"id\": 42,\n  \"type\": \"single\",\n  \"to_number\": \"628123456789\",\n  \"body\": \"Halo, ini pesan langsung dari API\",\n  \"status\": \"pending\",\n  \"created_at\": \"2026-09-02T07:50:59Z\"\n}"
+            },
+            {
+              "name": "Failed",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"id\": 42,\n  \"type\": \"single\",\n  \"to_number\": \"628123456789\",\n  \"body\": \"Halo, ini pesan langsung dari API\",\n  \"status\": \"failed\",\n  \"error_msg\": \"invalid JID: ...\",\n  \"created_at\": \"2026-09-02T07:50:59Z\"\n}"
+            },
+            {
+              "name": "Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"error\": \"not found\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Messages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/messages?status=sent&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["messages"],
+              "query": [
+                {
+                  "key": "to",
+                  "value": "628123456789",
+                  "description": "Filter by nomor tujuan (opsional)",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "sent",
+                  "description": "Filter: pending | sent | failed (opsional)"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Jumlah data, max 100, default 50"
+                }
+              ]
+            },
+            "description": "Query history pesan. Semua query param opsional. Diurutkan created_at DESC."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"count\": 2,\n  \"data\": [\n    {\n      \"id\": 43,\n      \"type\": \"template\",\n      \"template_id\": 1,\n      \"to_number\": \"628123456789\",\n      \"body\": \"Halo Budi, pesanan ORD-001 siap\",\n      \"status\": \"sent\",\n      \"sent_at\": \"2026-09-02T07:52:00Z\",\n      \"created_at\": \"2026-09-02T07:51:59Z\"\n    },\n    {\n      \"id\": 42,\n      \"type\": \"single\",\n      \"to_number\": \"628123456789\",\n      \"body\": \"Halo, ini pesan langsung dari API\",\n      \"status\": \"sent\",\n      \"sent_at\": \"2026-09-02T07:51:00Z\",\n      \"created_at\": \"2026-09-02T07:50:59Z\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Messages — Filter by Nomor",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/messages?to=628123456789&status=failed&limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["messages"],
+              "query": [
+                {
+                  "key": "to",
+                  "value": "628123456789"
+                },
+                {
+                  "key": "status",
+                  "value": "failed"
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Auth Test",
+      "item": [
+        {
+          "name": "Invalid Token",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "wrong-token",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["status"]
+            },
+            "description": "Test 401 dengan token salah."
+          },
+          "response": [
+            {
+              "name": "Unauthorized",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n  \"error\": \"invalid token\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "No Token",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["status"]
+            },
+            "description": "Test 401 tanpa Authorization header."
+          },
+          "response": [
+            {
+              "name": "Unauthorized",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n  \"error\": \"missing token\"\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WhatsApp Gateway — QR Login</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+      padding: 40px 48px;
+      text-align: center;
+      max-width: 440px;
+      width: 100%;
+    }
+
+    .logo {
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 16px;
+    }
+
+    h1 { font-size: 20px; font-weight: 700; color: #111; margin-bottom: 6px; }
+    .subtitle { font-size: 14px; color: #888; margin-bottom: 24px; }
+
+    /* Status badge */
+    #status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 6px 16px;
+      border-radius: 999px;
+      margin-bottom: 20px;
+    }
+    .badge-loading  { background: #f1f3f5; color: #868e96; }
+    .badge-waiting  { background: #fff3cd; color: #856404; }
+    .badge-ok       { background: #d1fae5; color: #065f46; }
+    .badge-error    { background: #fee2e2; color: #991b1b; }
+
+    .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .badge-loading .dot { background: #adb5bd; }
+    .badge-waiting .dot { background: #ffc107; animation: pulse 1.2s ease infinite; }
+    .badge-ok .dot      { background: #10b981; }
+    .badge-error .dot   { background: #ef4444; }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* QR Box */
+    #qr-box {
+      width: 280px;
+      height: 280px;
+      margin: 0 auto 20px;
+      border: 2px solid #e9ecef;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #qr-canvas { display: none; }
+    #qr-canvas canvas,
+    #qr-canvas img { display: block; }
+
+    /* Spinner */
+    .spinner {
+      width: 44px; height: 44px;
+      border: 4px solid #e9ecef;
+      border-top-color: #25d366;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Connected */
+    #connected-box { display: none; flex-direction: column; align-items: center; gap: 8px; }
+    .check-icon {
+      width: 72px; height: 72px;
+      background: #d1fae5;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 36px;
+      margin: 0 auto 4px;
+    }
+    #phone-label { font-size: 18px; font-weight: 700; color: #111; }
+    #phone-sub   { font-size: 13px; color: #888; }
+
+    .hint { font-size: 12px; color: #bbb; margin-bottom: 16px; min-height: 18px; }
+
+    /* Config */
+    details {
+      text-align: left;
+      border-top: 1px solid #f0f0f0;
+      padding-top: 18px;
+      margin-top: 8px;
+    }
+    summary { font-size: 13px; color: #aaa; cursor: pointer; user-select: none; list-style: none; }
+    summary::-webkit-details-marker { display: none; }
+    summary::before { content: '⚙ '; }
+
+    .cfg-row { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; }
+    .cfg-row label { font-size: 12px; font-weight: 600; color: #555; }
+    .cfg-row input {
+      padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px;
+      font-size: 13px; outline: none; transition: border-color .2s;
+    }
+    .cfg-row input:focus { border-color: #25d366; }
+    .cfg-btn {
+      margin-top: 12px; width: 100%; padding: 9px;
+      background: #25d366; color: #fff; border: none;
+      border-radius: 8px; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: background .2s;
+    }
+    .cfg-btn:hover { background: #1ebe5d; }
+
+    /* Error detail */
+    #err-detail { font-size: 11px; color: #ef4444; margin-top: 4px; word-break: break-all; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <svg class="logo" viewBox="0 0 48 48" fill="none">
+    <circle cx="24" cy="24" r="24" fill="#25d366"/>
+    <path d="M34.5 13.5A14.4 14.4 0 0 0 24 9C16.27 9 10 15.27 10 23c0 2.47.65 4.88 1.88 7L10 38l8.22-1.85A14.35 14.35 0 0 0 24 37c7.73 0 14-6.27 14-14 0-3.74-1.46-7.25-3.5-9.5Z" fill="#fff"/>
+    <path d="M29.8 26.6c-.37-.19-2.19-1.08-2.53-1.2-.34-.12-.59-.18-.84.18-.25.37-.97 1.2-1.19 1.45-.22.24-.44.27-.81.09-.37-.18-1.57-.58-2.99-1.85-1.1-.98-1.85-2.2-2.07-2.57-.22-.37-.02-.57.16-.75.17-.17.37-.44.56-.66.19-.22.25-.37.37-.62.12-.25.06-.47-.03-.66-.09-.18-.84-2.03-1.15-2.78-.3-.73-.6-.63-.84-.64h-.71c-.25 0-.65.09-.99.47-.34.37-1.3 1.27-1.3 3.1 0 1.82 1.33 3.58 1.52 3.83.18.25 2.62 4 6.35 5.61.89.38 1.58.61 2.12.78.89.28 1.7.24 2.34.15.71-.11 2.19-.9 2.5-1.76.31-.87.31-1.61.22-1.76-.09-.16-.34-.25-.71-.44Z" fill="#25d366"/>
+  </svg>
+
+  <h1>WhatsApp Gateway</h1>
+  <p class="subtitle">Scan QR untuk menghubungkan akun WhatsApp</p>
+
+  <div id="status-badge" class="badge-loading">
+    <span class="dot"></span>
+    <span id="status-text">Memuat...</span>
+  </div>
+
+  <!-- QR atau connected dalam satu box -->
+  <div id="qr-box">
+    <div class="spinner" id="spinner"></div>
+    <div id="qr-canvas"></div>
+    <div id="connected-box">
+      <div class="check-icon">✓</div>
+      <div id="phone-label">Terhubung</div>
+      <div id="phone-sub"></div>
+    </div>
+  </div>
+
+  <p class="hint" id="hint"></p>
+  <p id="err-detail"></p>
+
+  <details>
+    <summary>Konfigurasi</summary>
+    <div class="cfg-row">
+      <label>Base URL</label>
+      <input id="cfg-url" type="text" value="http://localhost:8080">
+    </div>
+    <div class="cfg-row">
+      <label>Bearer Token</label>
+      <input id="cfg-token" type="password" placeholder="your-static-token">
+    </div>
+    <button class="cfg-btn" onclick="saveAndRestart()">Simpan & Refresh</button>
+  </details>
+</div>
+
+<script>
+  const POLL_QR        = 10000;  // refresh QR tiap 10 detik (QR expire ~20 detik di WA)
+  const POLL_WAIT      = 3000;   // retry saat QR belum tersedia
+  const POLL_CONNECTED = 10000;  // keep-alive check saat connected
+
+  let timer   = null;
+  let qrObj   = null;  // instance QRCode
+
+  /* ── config ─────────────────────────────────────── */
+  function cfg() {
+    return {
+      url:   localStorage.getItem('gw_url')   || 'http://localhost:8080',
+      token: localStorage.getItem('gw_token') || ''
+    };
+  }
+
+  function saveAndRestart() {
+    localStorage.setItem('gw_url',   document.getElementById('cfg-url').value.trim());
+    localStorage.setItem('gw_token', document.getElementById('cfg-token').value.trim());
+    clearTimeout(timer);
+    poll();
+  }
+
+  /* ── state helpers ───────────────────────────────── */
+  function setStatus(type, text) {
+    const el = document.getElementById('status-badge');
+    el.className = 'badge-' + type;
+    document.getElementById('status-text').textContent = text;
+  }
+
+  function setHint(text) {
+    document.getElementById('hint').textContent = text;
+  }
+
+  function setErr(text) {
+    document.getElementById('err-detail').textContent = text || '';
+  }
+
+  function showSpinner() {
+    document.getElementById('spinner').style.display   = 'block';
+    document.getElementById('qr-canvas').style.display = 'none';
+    document.getElementById('connected-box').style.display = 'none';
+  }
+
+  function showQR(code) {
+    document.getElementById('spinner').style.display   = 'none';
+    document.getElementById('connected-box').style.display = 'none';
+
+    const wrap = document.getElementById('qr-canvas');
+    wrap.style.display = 'block';
+    wrap.innerHTML = '';   // buang QR lama
+
+    // render QR baru via qrcode.js
+    new QRCode(wrap, {
+      text:           code,
+      width:          260,
+      height:         260,
+      colorDark:      '#000',
+      colorLight:     '#fff',
+      correctLevel:   QRCode.CorrectLevel.M
+    });
+  }
+
+  function showConnected(phone) {
+    document.getElementById('spinner').style.display      = 'none';
+    document.getElementById('qr-canvas').style.display    = 'none';
+    document.getElementById('connected-box').style.display = 'flex';
+    document.getElementById('phone-label').textContent    = 'Terhubung';
+    document.getElementById('phone-sub').textContent      = phone ? '+' + phone : '';
+  }
+
+  /* ── polling ─────────────────────────────────────── */
+  async function poll() {
+    const { url, token } = cfg();
+
+    if (!token) {
+      setStatus('error', 'Token belum diisi');
+      setHint('Isi token di bagian Konfigurasi lalu klik Simpan');
+      return;
+    }
+
+    try {
+      const res = await fetch(url + '/qr', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+
+      /* 401 */
+      if (res.status === 401) {
+        setStatus('error', 'Token tidak valid (401)');
+        setHint('Periksa token di Konfigurasi');
+        setErr('');
+        return;
+      }
+
+      const data = await res.json();
+
+      /* connected */
+      if (data.connected) {
+        const st = await fetch(url + '/status', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        }).then(r => r.json()).catch(() => ({}));
+
+        setStatus('ok', 'Terhubung');
+        setHint('WhatsApp aktif — polling tiap 10 detik');
+        setErr('');
+        showConnected(st.phone || '');
+        timer = setTimeout(poll, POLL_CONNECTED);
+        return;
+      }
+
+      /* QR tersedia */
+      if (data.code) {
+        setStatus('waiting', 'Scan QR dengan WhatsApp');
+        setHint('Buka WhatsApp → Perangkat Tertaut → Tautkan Perangkat');
+        setErr('');
+        showQR(data.code);
+        timer = setTimeout(poll, POLL_QR);
+        return;
+      }
+
+      /* 503 atau error lain */
+      setStatus('loading', 'Menunggu QR...');
+      setHint('QR belum tersedia, mencoba lagi...');
+      setErr(data.error || '');
+      showSpinner();
+      timer = setTimeout(poll, POLL_WAIT);
+
+    } catch (e) {
+      setStatus('error', 'Gagal terhubung ke server');
+      setHint('Pastikan server berjalan dan URL benar');
+      setErr(e.message);
+      showSpinner();
+      timer = setTimeout(poll, POLL_WAIT);
+    }
+  }
+
+  /* ── init ────────────────────────────────────────── */
+  window.addEventListener('DOMContentLoaded', () => {
+    const { url, token } = cfg();
+    document.getElementById('cfg-url').value   = url;
+    document.getElementById('cfg-token').value = token;
+    poll();
+  });
+</script>
+</body>
+</html>

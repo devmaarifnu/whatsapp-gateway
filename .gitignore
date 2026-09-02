@@ -1,0 +1,19 @@
+# Config (berisi credential — jangan di-commit)
+config.yaml
+
+# WhatsApp session
+whatsapp.db
+whatsapp.db-shm
+whatsapp.db-wal
+
+# Binary
+*.exe
+wagateway
+
+# Logs
+logs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
