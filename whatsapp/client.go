@@ -3,10 +3,8 @@
 import (
 	"context"
 	"fmt"
-	"os"
 	"sync"
 
-	"github.com/mdp/qrterminal/v3"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types/events"
@@ -16,12 +14,23 @@ import (
 	"whatsapp-gateway/service"
 )
 
+// OnMessageFunc dipanggil untuk setiap pesan masuk (events.Message). Di-set
+// dari main.go (oleh handler.MessageHandler) agar package whatsapp tidak perlu
+// tahu tentang handler — menghindari import cycle.
+type OnMessageFunc func(client *whatsmeow.Client, evt *events.Message)
+
 type Client struct {
-	wac       *whatsmeow.Client
-	alert     *service.AlertService
-	logger    *zap.Logger
-	mu        sync.Mutex
-	currentQR string
+	wac        *whatsmeow.Client
+	alert      *service.AlertService
+	logger     *zap.Logger
+	mu         sync.Mutex
+	currentQR  string
+	onMessage  OnMessageFunc
+}
+
+// SetOnMessage mendaftarkan callback yang dipanggil untuk setiap pesan masuk.
+func (c *Client) SetOnMessage(fn OnMessageFunc) {
+	c.onMessage = fn
 }
 
 func New(ctx context.Context, store *sqlstore.Container, alert *service.AlertService, logger *zap.Logger) (*Client, error) {
@@ -64,8 +73,7 @@ func (c *Client) consumeQR(ch <-chan whatsmeow.QRChannelItem) {
 			c.mu.Lock()
 			c.currentQR = evt.Code
 			c.mu.Unlock()
-			qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
-			c.logger.Info("QR code printed to terminal — scan with WhatsApp")
+			c.logger.Info("QR code ready — scan via the /qr page")
 		}
 	}
 }
@@ -107,7 +115,7 @@ func (c *Client) Logout(ctx context.Context) error {
 }
 
 func (c *Client) handleEvent(evt interface{}) {
-	switch evt.(type) {
+	switch e := evt.(type) {
 	case *events.Connected:
 		c.logger.Info("whatsapp connected")
 		c.mu.Lock()
@@ -116,6 +124,10 @@ func (c *Client) handleEvent(evt interface{}) {
 	case *events.Disconnected:
 		c.logger.Warn("whatsapp disconnected")
 		c.alert.Notify("whatsapp connection lost")
+	case *events.Message:
+		if c.onMessage != nil {
+			c.onMessage(c.wac, e)
+		}
 	}
 }
 

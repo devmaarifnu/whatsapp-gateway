@@ -9,6 +9,7 @@ whatsapp.db-wal
 # Binary
 *.exe
 wagateway
+whatsapp-gateway
 
 # Logs
 logs/

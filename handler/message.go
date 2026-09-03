@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -12,23 +11,27 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
+
+	"whatsapp-gateway/model"
+	"whatsapp-gateway/repository"
 )
 
 type MessageHandler struct {
 	logger *zap.Logger
-	db     *sql.DB
+	repo   *repository.IncomingRepo
 }
 
-func NewMessageHandler(logger *zap.Logger) *MessageHandler {
-	return &MessageHandler{logger: logger}
+func NewMessageHandler(logger *zap.Logger, repo *repository.IncomingRepo) *MessageHandler {
+	return &MessageHandler{logger: logger, repo: repo}
 }
 
-func (h *MessageHandler) SetDB(db *sql.DB) {
-	h.db = db
-}
-
+// Handle dipanggil untuk setiap pesan masuk (events.Message).
 func (h *MessageHandler) Handle(client *whatsmeow.Client, evt *events.Message) {
-	// Ambil teks pesan
+	// Abaikan pesan yang dikirim nomor ini sendiri (echo) dan pesan tanpa teks.
+	if evt.Info.IsFromMe {
+		return
+	}
+
 	body := extractText(evt)
 	if body == "" {
 		return
@@ -36,34 +39,45 @@ func (h *MessageHandler) Handle(client *whatsmeow.Client, evt *events.Message) {
 
 	sender := evt.Info.Sender.String()
 	chat := evt.Info.Chat.String()
+	isGroup := evt.Info.IsGroup
 
-	h.logger.Info("pesan masuk",
-		zap.String("dari", sender),
-		zap.String("chat", chat),
-		zap.String("isi", body),
-	)
-
-	// Simpan ke DB
-	if h.db != nil {
-		h.saveMessage(evt.Info.ID, sender, chat, body)
+	// Simpan ke MySQL (tabel incoming_messages)
+	_, err := h.repo.Insert(&model.IncomingMessage{
+		WAMessageID: evt.Info.ID,
+		Sender:      sender,
+		Chat:        chat,
+		Body:        body,
+		IsGroup:     isGroup,
+	})
+	if err != nil {
+		h.logger.Error("gagal simpan pesan masuk", zap.String("id", evt.Info.ID), zap.Error(err))
+	} else {
+		h.logger.Info("pesan masuk tersimpan",
+			zap.String("id", evt.Info.ID),
+			zap.String("dari", sender),
+			zap.String("chat", chat),
+		)
 	}
 
-	// Proses command
-	reply := h.processCommand(body)
+	// Balas perintah hanya pada chat 1-on-1; pesan grup cukup disimpan.
+	if isGroup {
+		return
+	}
+
+	reply := h.processCommand(body, sender)
 	if reply == "" {
 		return
 	}
 
-	// Kirim balasan
-	_, err := client.SendMessage(context.Background(), evt.Info.Chat, &waE2E.Message{
+	_, err = client.SendMessage(context.Background(), evt.Info.Chat, &waE2E.Message{
 		Conversation: proto.String(reply),
 	})
 	if err != nil {
-		h.logger.Error("gagal kirim pesan", zap.Error(err))
+		h.logger.Error("gagal kirim pesan balasan", zap.Error(err))
 	}
 }
 
-func (h *MessageHandler) processCommand(text string) string {
+func (h *MessageHandler) processCommand(text, sender string) string {
 	lower := strings.ToLower(strings.TrimSpace(text))
 
 	switch {
@@ -78,46 +92,32 @@ func (h *MessageHandler) processCommand(text string) string {
 			"!ping  — cek bot aktif\n" +
 			"!waktu — lihat waktu server\n" +
 			"!echo <teks> — balik teks\n" +
-			"!stat  — statistik pesan"
+			"!stat  — statistik pesan kamu"
 
 	case strings.HasPrefix(lower, "!echo "):
 		return strings.TrimPrefix(text, "!echo ")
 
 	case lower == "!stat":
-		return h.getStats()
+		return h.getStats(sender)
 
 	default:
 		return ""
 	}
 }
 
-func (h *MessageHandler) saveMessage(id, sender, chat, body string) {
-	_, err := h.db.Exec(
-		`INSERT OR IGNORE INTO messages (id, sender, chat, body, received_at) VALUES (?, ?, ?, ?, ?)`,
-		id, sender, chat, body, time.Now().Unix(),
-	)
+func (h *MessageHandler) getStats(sender string) string {
+	total, err := h.repo.CountBySender(sender)
 	if err != nil {
-		h.logger.Error("gagal simpan pesan", zap.Error(err))
+		return "Gagal membaca statistik."
 	}
-}
-
-func (h *MessageHandler) getStats() string {
-	if h.db == nil {
-		return "DB tidak tersedia."
+	lastBody, err := h.repo.LastBodyBySender(sender)
+	if err != nil {
+		lastBody = "—"
 	}
-
-	var total int
-	h.db.QueryRow(`SELECT COUNT(*) FROM messages`).Scan(&total)
-
-	var uniqueSenders int
-	h.db.QueryRow(`SELECT COUNT(DISTINCT sender) FROM messages`).Scan(&uniqueSenders)
-
-	var last string
-	h.db.QueryRow(`SELECT body FROM messages ORDER BY received_at DESC LIMIT 1`).Scan(&last)
 
 	return fmt.Sprintf(
-		"Statistik pesan:\nTotal: %d\nPengirim unik: %d\nPesan terakhir: %s",
-		total, uniqueSenders, last,
+		"Statistik pesan kamu:\nTotal: %d\nPesan terakhir: %s",
+		total, lastBody,
 	)
 }
 

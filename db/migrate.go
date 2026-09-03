@@ -31,5 +31,22 @@ func MigrateMySQL(db *sql.DB) error {
 			FOREIGN KEY (template_id) REFERENCES templates(id)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 	`)
+	if err != nil {
+		return err
+	}
+
+	// Pesan masuk (inbound) — tabel terpisah dari `messages` (outbound history)
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS incoming_messages (
+			id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+			wa_message_id VARCHAR(100) UNIQUE,
+			sender      VARCHAR(40) NOT NULL,
+			chat        VARCHAR(40) NOT NULL,
+			body        TEXT NOT NULL,
+			is_group    BOOLEAN DEFAULT FALSE,
+			received_at DATETIME,
+			KEY idx_incoming_received_at (received_at)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+	`)
 	return err
 }
