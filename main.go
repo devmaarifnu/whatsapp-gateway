@@ -67,6 +67,12 @@ func main() {
 
 	msgSvc := service.NewMessageService(messageRepo, templateSvc, waClient.WAClient(), cfg.Worker.Count, logger)
 
+	// Handler pesan masuk — aktifkan bot perintah & simpan inbound ke MySQL.
+	// Didaftarkan lewat callback agar whatsapp.Client tidak perlu import handler.
+	incomingRepo := repository.NewIncomingRepo(mysqlDB)
+	msgHandler := handler.NewMessageHandler(logger, incomingRepo)
+	waClient.SetOnMessage(msgHandler.Handle)
+
 	sendH := handler.NewSendHandler(msgSvc)
 	historyH := handler.NewHistoryHandler(messageRepo)
 	waH := handler.NewWAHandler(waClient)
@@ -81,7 +87,7 @@ func main() {
 	}))
 
 	bp := cfg.Server.BasePath
-	r.StaticFile(bp+"/qr.html", "./docs/qr.html")
+	r.StaticFile(bp+"/qr.html", "./qr.html")
 
 	r.NoRoute(func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
@@ -157,4 +163,3 @@ func newLogger(cfg config.LogConfig) *zap.Logger {
 
 	return zap.New(zapcore.NewTee(cores...), zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
 }
-
